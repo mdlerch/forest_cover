@@ -7,8 +7,6 @@ h2ovalidate <- as.h2o(h2oserver, validate <- read.csv("../data/our_validation.cs
 y <- which(names(train) == "Cover_Type")
 x <- 3:(y-1)
 
-plot(train$Soil_Type1)
-
 rf_fit <- h2o.randomForest(x = x, y = y, data = h2otrain)
 
 rf_pred <- as.data.frame(h2o.predict(rf_fit, h2ovalidate)$predict)
