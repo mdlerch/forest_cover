@@ -8,10 +8,3 @@ y <- which(names(train) == "Cover_Type")
 x <- 3:(y-1)
 
 gbm_fit <- h2o.gbm(x = x, y = y, data = h2otrain)
-
-gbm_pred <- as.data.frame(h2o.predict(gbm_fit, h2ovalidate)$predict)
-gbm_pred$Id <- validate$Id
-names(gbm_pred)[names(gbm_pred) == "predict"] <- "Cover_Type"
-
-source("./evaluate.R")
-evaluate(gbm_pred)
