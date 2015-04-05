@@ -1,0 +1,221 @@
+---
+title: "Exploring the Forest Cover Data"
+author: "Kevin"
+date: "Thursday, April 02, 2015"
+output: 
+  html_document:
+    theme: united
+---
+
+We are working on the [forest cover kaggle competition](http://www.kaggle.com/c/forest-cover-type-predictionhttp://www.kaggle.com/c/forest-cover-type-prediction).  Our [GitHub repo](https://github.com/mdlerch/forest_cover) contains the testing data which we have split up into a testing set and a training set.
+
+In this challenge, you are given some information about a location and asked to predict which of 7 species of tree is the predominant species.  Here are some exploratory plots.  I'm using this as a chance to check out some [htmlwidgets](http://htmlwidgets.org/) so be prepared for a lot of different styles of plots.
+
+My basic setup code
+
+```{r setup, echo=T, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = T, 
+                      message = F, 
+                      tidy = F, 
+                      fig.height = 6, 
+                      fig.width = 10, 
+                      comment = "#>", 
+                      cache = F, 
+                      size = "small", 
+                      results = "asis")
+options(show.signif.stars = F, 
+        digits = 3)
+```
+
+## Data
+
+Loading the data.  Interestingly, it present both wilderness and soil type in wide format.  I've had to modify this for most of the plots.  This part of the code is not very interesting.
+
+```{r data, results='markup'}
+# packages for data manipulation
+library(tidyr)   ## to turn data to long format
+library(dplyr)   ## for basic data manipulation
+
+# grab right n characters of a string
+substrRight <- function(x, n){
+  substr(x, nchar(x)-n+1, nchar(x))
+}
+
+# data ------------------------------------------------
+
+# load data
+dat <- read.csv("data/our_train.csv", header = T, stringsAsFactors = F) %>% 
+  tbl_df() %>% 
+  select(-X)
+dat
+
+# turn soil column into long format
+soil_long <- dat %>% 
+  gather(Soil, yn, -(Id:Wilderness_Area4), -Cover_Type) %>% 
+  filter(yn == 1) %>% 
+  mutate(
+    Soil = as.character(Soil), 
+    Soil = ifelse(nchar(Soil) == 10, substrRight(Soil, 1), substrRight(Soil, 2)), 
+    Soil = as.numeric(Soil)
+  ) %>% 
+  select(-yn)
+
+# turn wilderness to long format 
+wild_long <- dat %>% 
+  gather(Wilderness, yn, -(Id:Horizontal_Distance_To_Fire_Points), -(Soil_Type1:Soil_Type40), -Cover_Type) %>%
+  filter(yn == 1) %>% 
+  mutate(
+    Wilderness = Wilderness %>% as.character %>% substrRight(1) %>% as.numeric) %>% 
+  select(-yn)
+```
+
+## Soil Type
+
+One of the variable that is provided is the type of the soil.  This is classified into one of 40 categories.  I turned this into long format in a data.frame called `soil_long` in the preceding code chunk.  Looking at the ggplot below, there are a couple of things I notice:
+
+1. Not all 40 soils are present (ex. soil 7, soil 15, etc)
+2. Some soils are a lot more common than others (looking at you soil 10)
+3. It looks like there are typically 3-4 tree species per soil type
+
+```{r soil-ggplot}
+# basic bar chart
+library(ggplot2)
+qplot(factor(Soil), data = soil_long, fill = factor(Cover_Type)) + 
+  scale_fill_brewer(palette = "PuOr") + 
+  theme_bw()
+```
+
+The [streamgraph package](https://github.com/hrbrmstr/streamgraph) provides really nice methods of visualizing how variables change over time.  It's designed to work with time series so I had to hack it a bit to make this work.
+
+```{r soil-streamgraph}
+# as a streamgraph
+library(streamgraph)
+soil_long %>% 
+  group_by(Soil, Cover_Type) %>% 
+  summarise(num = n()) %>% 
+  ungroup() %>% 
+  mutate(Soil = Soil %>% paste0(., "-01-01") %>% as.Date) %>%  ## super cheesy
+  streamgraph("Cover_Type", "num", "Soil", interpolate="monotone") %>%
+  sg_axis_x(1, "year", "%Y") %>%
+  sg_legend(show=TRUE, label="Cover Type: ")%>%
+  sg_fill_brewer("PuOr")
+
+```
+
+Some things jump out at me:
+
+1. Tree species (aka Cover Types) are actually represented fairly equally. I'm not sure the streamgraph does a good job displaying this, but
+
+```{r cover-freq}
+library(knitr)    ## for nice markdown tables
+dat %>% 
+  group_by(Cover_Type) %>% 
+  summarise(n()) %>% 
+  kable()
+```
+
+2. These variables are definitely related.  I don't think Cover Type is ordered in any way.  
+3. I'm not sure I like streamgraphs from an exploratory setting.  They do look really sleek so they'd probably be useful for presentations.
+
+## Wilderness Area
+
+Wilderness Area is broken into four categories, but I'm not exactly sure what any of the four categories represent.  Here's a ggplot, but I actually like the [dimple](http://dimplejs.org/) plot that's next a little bit better.
+
+```{r wild-ggplot}
+# basic bar chart
+qplot(factor(Wilderness), data = wild_long, fill = factor(Cover_Type)) + 
+  scale_fill_brewer(palette = "PuOr")
+```
+
+[dimple](http://dimplejs.org/) is a JavaScript plotting library that's powered by [d3](http://d3js.org/).  Kenton Russell [put a ton of work](http://timelyportfolio.github.io/rCharts_dimple/dimple_timeseries.html) into allowing R users to use dimple.  He recently put together the [rcdimple package](https://github.com/timelyportfolio/rcdimple) and I'm testing it here.
+
+```{r wild-dimple}
+# using rcdimple
+library(rcdimple)
+wild_long %>% 
+  group_by(Cover_Type, Wilderness) %>% 
+  summarise(num = n()) %>% 
+  ungroup() %>% 
+  dimple(
+    x = "Wilderness", 
+    y = "num", 
+    groups = "Cover_Type", 
+    type = "bar", 
+    data = .
+  ) %>% 
+  rcdimple::add_legend(x = 2, width = 300)  ## can get confused with ggvis package
+```
+
+I like this plot way better then the ggplot version, and I haven't played with the parameters much.  
+
+* It looks like green and purple (covers 3 and 6) go together
+* Orange (cover 4) only occurs in Wilderness 4.  Interesting...
+* Wilderness 2 is pretty rare
+* We should check with Terrill or some ecology guy who could tell us about this
+
+## Elevation by Wilderness
+
+I use the [rbokeh](https://github.com/bokeh/rbokeh) package to visualize elevation and wilderness vs cover.  This package is an interface to the [bokeh](http://bokeh.pydata.org/en/latest/) visualization library that is really nice.
+
+Here, we really start to see some interesting patterns.  
+
+1. First of all, elevation is really strongly related to wilderness type.  2500 meters appears to be an interesting cutoff.  It is basically the boundary line for wilderness type 4.  Almost all type 4 wilderness occurs below 2500 meters (about 98% of the time), and other wilderness types occur below 2500 meters only rarely.  At 2500 meters, wilderness transitions to type 3.  Types 1 and 2 typically occur above 2700 meters, though there are some cover type 5 trees in wilderness 1 at about 2500 meters.
+
+```{r wild-bokeh, eval=FALSE}
+wild_bokeh <- wild_long %>% 
+  mutate(Wilderness = as.character(Wilderness), 
+         Cover_Type = Cover_Type + runif(n(), -.1, .1))
+
+library(rbokeh)
+p <- figure() %>% 
+  ly_points(Elevation, Cover_Type, data = wild_bokeh,
+            glyph = Wilderness, color = Wilderness, alpha = 0.5, 
+            hover = list(Elevation, Wilderness, Cover_Type))
+p
+```
+
+As for predicting cover type, we almost certainly know that if it's below 2500 meters it is type 3, 4, or 6.  Cover type 7 clearly likes high elevation.  Beyond that, I'm not sure what information this provides.
+
+## Scatterplot Matrix
+
+Let's try a scatterplot matrix of the quantitative variables just for fun.  This is using the [imageR](https://github.com/timelyportfolio/imageR) htmlwidget.  Click on the plot below to zoom in.  
+
+On their own, I don't know that any of these variables other than elevation appears that interesting right off the bat.
+
+```{r scatterplot-imageR}
+library(imageR)
+library(htmltools)
+library(base64enc)
+
+# make a tempfile to hold our chart  
+tf <- tempfile()
+# delete our tempfile on exit
+on.exit(unlink(tf))
+
+# save our chart as a big png
+png(tf, height = 800, width = 1000)
+  # make a kind of pretty chart
+dat %>% 
+  select(Elevation:Horizontal_Distance_To_Fire_Points, Cover_Type) %>% 
+  pairs(., main="Example from ?pairs")
+dev.off()
+
+intense(
+  tags$img(
+    style="height:400px;overflow:hidden;",
+    src = dataURI(file=tf,mime="image/png")
+  ),
+  height = 800
+)
+```
+
+## Other Plots
+
+I'm out of ideas for tonight, but let me know what other plots you think might be useful for this example.
+
+
+
+
+
+
+
