@@ -4,9 +4,9 @@ models <- list("model_rf_naive", "model_gbm_naive", "model_deep_naive")
 # 1. Setup: load packages and data
 library(h2o)
 h2oserver <- h2o.init(nthreads = -1)
-h2otrain <- as.h2o(h2oserver, train <- read.csv("../data/our_train.csv"), "train")
-h2ovalidate <- as.h2o(h2oserver, validate <- read.csv("../data/our_validation.csv"))
-h2otest <- as.h2o(h2oserver, test <- read.csv("../data/test.csv"))
+h2otrain <- as.h2o(h2oserver, train <- read.csv("../data/collapse_train.csv"), "train")
+h2ovalidate <- as.h2o(h2oserver, validate <- read.csv("../data/collapse_validation.csv"))
+h2otest <- as.h2o(h2oserver, test <- read.csv("../data/collapse_test.csv"))
 
 # 2. Obtain model fits
 lapply(models, function(x) { source(paste0(x, ".R")) })
