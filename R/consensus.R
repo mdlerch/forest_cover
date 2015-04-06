@@ -1,12 +1,17 @@
-consensus <- function(fits, w, categories = 7)
+consensus <- function(predictions, w)
 {
-    N <- length(fits)
-    n <- length(fits[[1]])
-    bigtable <- matrix(0, nrow = n, ncol = categories)
-    for (i in 1:N)
+    link <- function(x) { x }
+    # number of models
+    N <- length(predictions)
+    # number of observations
+    n <- nrow(predictions[[1]])
+    categories <- ncol(predictions[[1]])
+    columns <- names(predictions[[1]])
+    cols <- is.element(columns, c("X1", "X2", "X3", "X4", "X5", "X6", "X7"))
+    bigtable <- as.matrix(predictions[[1]][ , cols])
+    for (i in 2:N)
     {
-        bigtable[1:n + (fits[[i]] - 1) * n] <-
-            bigtable[1:n + (fits[[i]] - 1) * n] + w[[i]]
+        bigtable <- bigtable + w[[i]] * link(predictions[[i]][ , cols])
     }
     apply(bigtable, 1, function(x) which(x == max(x)))
 }

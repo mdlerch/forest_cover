@@ -18,13 +18,13 @@ weights <- lapply(models, function(x) {
     evaluate(h2o_predict(eval(parse(text = x)), h2ovalidate), validate) })
 
 # 4. Take consensus of model picks
-fits <- lapply(models, function(x) {
-    h2o_predict(eval(parse(text = x)), h2otest)$Cover_Type })
+predictions <- lapply(models, function(x) {
+    h2o_predict(eval(parse(text = x)), h2otest) })
 
 source("./consensus.R")
 consensus_picks <- data.frame(Id = test$Id)
 consensus_picks$Cover_Type <- consensus(fits, weights)
 
 # 5. Write to file
-submit <- paste0("../data/submission_", format(Sys.time(), "%m-%d-%H-%M"))
+submit <- paste0("../data/submission_", format(Sys.time(), "%m-%d-%H-%M", ".csv"))
 write.csv(consensus_picks, file = submit, row.names = FALSE)
