@@ -16,6 +16,7 @@ My basic setup code
 ```{r setup, echo=T, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = T, 
                       message = F, 
+                      warning = F, 
                       tidy = F, 
                       fig.height = 6, 
                       fig.width = 10, 
@@ -107,11 +108,12 @@ Some things jump out at me:
 1. Tree species (aka Cover Types) are actually represented fairly equally. I'm not sure the streamgraph does a good job displaying this, but
 
 ```{r cover-freq}
-library(knitr)    ## for nice markdown tables
+library(rhandsontable)    ## for nice markdown tables
 dat %>% 
   group_by(Cover_Type) %>% 
   summarise(n()) %>% 
-  kable()
+  rhandsontable()  %>%
+  hot_cols(columnSorting = TRUE)
 ```
 
 2. These variables are definitely related.  I don't think Cover Type is ordered in any way.  
