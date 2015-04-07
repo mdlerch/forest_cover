@@ -68,6 +68,14 @@ wild_long <- dat %>%
   mutate(
     Wilderness = Wilderness %>% as.character %>% substrRight(1) %>% as.numeric) %>% 
   select(-yn)
+
+# both wild and soil in long formation
+all_long <- soil_long %>% 
+  gather(Wilderness, yn, -(Id:Horizontal_Distance_To_Fire_Points), -Cover_Type, -Soil) %>% 
+  filter(yn == 1) %>% 
+  mutate(
+    Wilderness = Wilderness %>% as.character %>% substrRight(1) %>% as.numeric) %>% 
+  select(-yn)
 ```
 
 ## Soil Type
@@ -108,7 +116,7 @@ Some things jump out at me:
 1. Tree species (aka Cover Types) are actually represented fairly equally. I'm not sure the streamgraph does a good job displaying this, but
 
 ```{r cover-freq}
-library(rhandsontable)    ## for nice markdown tables
+library(rhandsontable)    
 dat %>% 
   group_by(Cover_Type) %>% 
   summarise(n()) %>% 
@@ -210,6 +218,46 @@ intense(
   height = 800
 )
 ```
+
+## Cover 1 vs 2
+
+It sounds like our models are having trouble separating Cover 1 and 2.  Let's try and find some differences.
+
+In this plot, size is proportional to the number of points in each group.  It appears that in wilderness 2, cover type 1 tends to have a much higher aspect.  There are no species of cover type 1 in wilderness 4, but there are some cover type 2 there.
+
+```{r aspect-wilderness}
+wild_long %>% 
+  group_by(Cover_Type, Wilderness) %>% 
+  summarise(Aspect = mean(Aspect), 
+            num = n()) %>% 
+  ungroup() %>% 
+  dimple(y = "Aspect", 
+         x = c("Wilderness", "Cover_Type"), 
+         z = "num", 
+         groups = "Cover_Type", 
+         data = ., 
+         type = "bubble") %>% 
+  add_legend()
+```
+
+In wilderness 1 and 3, it looks as though Cover Type 1 might have slightly higher elevations.
+
+```{r elevation-wilderness}
+wild_long %>% 
+  group_by(Cover_Type, Wilderness) %>% 
+  summarise(Elevation = mean(Elevation), 
+            num = n()) %>% 
+  ungroup() %>% 
+  dimple(y = "Elevation", 
+       x = c("Wilderness", "Cover_Type"), 
+       z = "num", 
+       groups = "Cover_Type", 
+       data = ., 
+       type = "bubble") %>% 
+  add_legend() %>% 
+  xAxis(type = "addCategoryAxis")
+```
+
 
 ## Other Plots
 
