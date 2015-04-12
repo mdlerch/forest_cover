@@ -6,8 +6,21 @@ validate <- read.csv("../data/collapse_validation.csv")
 names(train)
 
 ###############################
-## Better measure for Aspect ##
+## Setup h2o for comparisons ##
 ###############################
+
+library(h2o)
+h2oserver <- h2o.init()
+
+h2otrain <- as.h2o(h2oserver, train)
+source("./model_rf_naive.R")
+model_rf_naive
+# error rate: 0.1430577
+
+###########################################################################
+##                       Better measure for aspect                       ##
+###########################################################################
+
 
 # Aspect is measured between 0 and 360.  Most likely 0==due north, 180==due
 # south.  Try to remeasure the aspect as something that makes 0 and 360 very
@@ -18,6 +31,9 @@ boxplot(Aspect ~ Cover_Type, train)
 
 # Some of those 0's might be fake
 
+####################
+## Change dataset ##
+####################
 # Let's take 0 and 360 to 0 and 180 to 1.
 # We can do this with sin(.5*x)
 train$Aspect2 <- sin(train$Aspect * pi / 180 / 2)
@@ -28,62 +44,50 @@ boxplot(Aspect2 ~ Cover_Type, train)
 
 table(train$Northerly, train$Cover_Type)
 
-
-
+###################
+## Change datset ##
+###################
+# Make cover type last variable
 train <- train[c(1:13, 15, 16, 14)]
 
+##########
+## test ##
+##########
 h2otrain <- as.h2o(h2oserver, train)
+source("./model_rf_naive.R")
+model_rf_naive
+# error rate: 0.1436286 (essentially the same)
+
+#################################
+## Impute values for hillshade ##
+#################################
+
+Hillshade_o <- train$Hillshade_3pm
+
+with(train, plot(y = Hillshade_o, x = Hillshade_9am, col = Cover_Type))
+with(train, plot(y = Hillshade_o, x = (max(Hillshade_9am) - Hillshade_9am)^.5, col = Cover_Type))
+abline(lm(Hillshade_o ~ I((max(train$Hillshade_9am) - train$Hillshade_9am)^.5)))
+
+with(train, plot(y = Hillshade_o, x = Hillshade_Noon, col = Cover_Type))
+with(train, plot(y = Hillshade_o, x = Hillshade_Noon^2, col = Cover_Type))
+abline(lm(Hillshade_o ~ I(train$Hillshade_Noon^2)))
+
+with(train, plot(y = Hillshade_o, x = Slope, col = Cover_Type))
+
+# easiest to make variables
+pred9am <- with(train, (max(Hillshade_9am) - Hillshade_9am) ^ 0.5)
+predNoon <- train$Hillshade_Noon ^ 2
+summary(lm1 <- lm(Hillshade_o ~ pred9am * predNoon))
+
+train$Hillshade_3pm[Hillshade_o == 0] <- lm1$fitted.values[Hillshade_o == 0]
+
+with(train, plot(y = Hillshade_3pm, x = Hillshade_9am, col = Cover_Type))
+with(train, plot(y = Hillshade_3pm, x = (max(Hillshade_9am) - Hillshade_9am)^.5, col = Cover_Type))
+
+with(train, plot(y = Hillshade_3pm, x = Hillshade_Noon, col = Cover_Type))
+with(train, plot(y = Hillshade_3pm, x = Hillshade_Noon^2, col = Cover_Type))
 
 source("./model_rf_naive.R")
-
 model_rf_naive
 
-
-
-
-
-for (i in nonsoil)
-{
-    plot(train$Cover_Type ~ train[[i]], col = train$Cover_Type)
-    readline()
-}
-
-hist(train$Elevation)
-hist(train$Aspect)
-
-summary(lm1 <- lm(Hillshade_3pm ~ Slope + Hillshade_Noon + Hillshade_9am,
-           subset(train, Hillshade_3pm != 0)))
-
-impute <- predict(lm1, subset(train, Hillshade_3pm == 0))
-impute[impute < 0] <- 0
-train$Hillshade_3pm[as.numeric(names(impute))] <- impute
-impute <- predict(lm1, subset(validate, Hillshade_3pm == 0))
-impute[impute < 0] <- 0
-validate$Hillshade_3pm[as.numeric(names(impute))] <- impute
-
-hist(train$Aspect)
-sum(train$Aspect == 0)
-
-train$Aspect2 <- sin(train$Aspect * pi / 180)
-validate$Aspect2 <- sin(validate$Aspect * pi / 180)
-hist(train$Aspect2)
-
-hist(train$Hillshade_3pm)
-hist(train$Hillshade_9am)
-hist(train$Hillshade_Noon)
-
-with(train, plot(Cover_Type ~ Horizontal_Distance_To_Fire_Points, col = Cover_Type, pch = 19))
-
-library(h2o)
-h2oserver <- h2o.init()
-h2otrain <- as.h2o(h2oserver, train)
-
-y <- which(names(train) == "Cover_Type")
-x <- c(3, 5:(y - 1), y+1)
-
-model_rf_naive <- h2o.randomForest(x = x, y = y, data = h2otrain)
-source("./evaluate.R")
-source("./h2o_predict.R")
-h2ovalidate <- as.h2o(h2oserver, validate)
-evaluate(h2o_predict(model_rf_naive, h2ovalidate), validate)
 
